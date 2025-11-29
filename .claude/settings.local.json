@@ -8,7 +8,9 @@
       "Bash(git remote add:*)",
       "Bash(git branch:*)",
       "Bash(git push:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nRestructure to microservices architecture with Spring Cloud\n\nMajor Changes:\n- Converted to multi-module Maven project\n- Added Eureka Server for service discovery\n- Added Config Server for centralized configuration\n- Added Gateway Server as API gateway\n- Restructured Hello Service as a microservice\n- Updated Docker Compose for all services\n- Added health checks and startup dependencies\n- Updated Cloudflare tunnel to route through gateway\n\nNew Services:\n- eureka-server (Port 8761) - Service discovery\n- config-server (Port 8888) - Configuration management\n- gateway-server (Port 8080) - API Gateway\n- hello-service (Port 8081) - Sample microservice\n\nFeatures:\n- Service discovery with Netflix Eureka\n- API Gateway with Spring Cloud Gateway\n- Centralized configuration with Spring Cloud Config\n- Docker Compose orchestration with health checks\n- Automatic service registration\n- Load balancing via Eureka\n- Public access via Cloudflare Tunnel\n\nUpdated:\n- docker-compose.yml: Now manages 5 containers\n- start.ps1: Updated for microservices startup\n- deploy.md: Complete microservices documentation\n- README.md: Quick reference guide\n\nAll services include Spring Boot Actuator for health checks.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(gh pr create:*)"
     ],
     "deny": [],
     "ask": []

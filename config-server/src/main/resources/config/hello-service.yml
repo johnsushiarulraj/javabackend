@@ -1,0 +1,26 @@
+# Configuration for Hello Service
+server:
+  port: 8081
+
+spring:
+  application:
+    name: hello-service
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+
+# Service-specific configuration
+hello:
+  message: "Hello World from JavaBackend.com!"
+  version: "1.0.0"
+  environment: ${ENVIRONMENT:local}
+
+# Custom health check
+management:
+  endpoint:
+    health:
+      show-details: always
+  health:
+    defaults:
+      enabled: true

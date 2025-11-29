@@ -1,3 +1,4 @@
+# Configuration for Config Server itself
 server:
   port: 8888
 
@@ -9,14 +10,12 @@ spring:
       server:
         native:
           search-locations: classpath:/config
+        default-label: main
   profiles:
     active: native
 
-eureka:
-  client:
-    service-url:
-      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
-    register-with-eureka: true
-    fetch-registry: true
-  instance:
-    prefer-ip-address: true
+# Config Server specific settings
+config:
+  server:
+    refresh:
+      enabled: true
