@@ -1,0 +1,41 @@
+# Configuration for Gateway Server
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-server
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # Route for Hello Service
+        - id: hello-service
+          uri: lb://hello-service
+          predicates:
+            - Path=/hello/**
+          filters:
+            - StripPrefix=1
+
+        # Route for Config Server (optional - for debugging)
+        - id: config-server
+          uri: lb://config-server
+          predicates:
+            - Path=/config/**
+          filters:
+            - StripPrefix=1
+
+        # Route for Eureka Server (optional - for debugging)
+        - id: eureka-server
+          uri: lb://eureka-server
+          predicates:
+            - Path=/eureka/**
+
+# Gateway-specific settings
+gateway:
+  timeout:
+    connect: 5000
+    response: 30000
