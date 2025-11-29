@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Spring Boot Application
+  javabackend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: 1johnsushil/javabackend:latest
+    container_name: javabackend-container
+    ports:
+      - "8080:8080"
+    networks:
+      - javabackend-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Cloudflare Tunnel
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared-tunnel
+    command: tunnel --config /etc/cloudflared/config.yml run javabackend-tunnel
+    volumes:
+      - ./cloudflare-tunnel-config.yml:/etc/cloudflared/config.yml:ro
+      - C:\Users\lifeo\.cloudflared\4c2d1f8b-b342-4350-b2a3-ee468c1e977b.json:/etc/cloudflared/credentials.json:ro
+    networks:
+      - javabackend-network
+    depends_on:
+      javabackend:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  javabackend-network:
+    driver: bridge
