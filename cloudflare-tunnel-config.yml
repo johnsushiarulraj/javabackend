@@ -3,7 +3,7 @@ credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
   - hostname: javabackend.com
-    service: http://javabackend:8080
+    service: http://gateway-server:8080
   - hostname: www.javabackend.com
-    service: http://javabackend:8080
+    service: http://gateway-server:8080
   - service: http_status:404

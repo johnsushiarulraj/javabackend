@@ -3,7 +3,12 @@
     "allow": [
       "Bash(dir:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nInitial commit: Spring Boot app with Docker Compose and Cloudflare tunnel\n\n- Created Spring Boot Hello World application with Thymeleaf\n- Dockerized application with multi-stage build\n- Added Docker Compose setup for both app and Cloudflare tunnel\n- Created automated PowerShell scripts (start.ps1 and stop.ps1)\n- Added comprehensive deployment documentation\n- Configured Cloudflare tunnel for javabackend.com domain\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
