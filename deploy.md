@@ -1,19 +1,29 @@
-# JavaBackend.com Deployment Guide
+# JavaBackend Microservices Deployment Guide
 
-This guide explains how to run your Spring Boot application and configure the Cloudflare tunnel to make it accessible via javabackend.com.
+This guide explains how to run your Spring Cloud microservices architecture with Eureka Server, Config Server, Gateway Server, and Hello Service, all accessible via javabackend.com through Cloudflare Tunnel.
+
+## Architecture Overview
+
+This is a complete microservices architecture using Spring Cloud:
+
+- **Eureka Server** (Port 8761) - Service Discovery and Registration
+- **Config Server** (Port 8888) - Centralized Configuration Management
+- **Gateway Server** (Port 8080) - API Gateway and Routing
+- **Hello Service** (Port 8081) - Sample Microservice
+- **Cloudflare Tunnel** - Secure public access via javabackend.com
+
+All services are containerized with Docker and orchestrated using Docker Compose.
 
 ## Prerequisites
 
 - Docker Desktop installed and running
 - Docker Compose (included with Docker Desktop)
-- Maven (for building the JAR)
+- Maven (for building JARs)
 - Your domain (javabackend.com) configured in Cloudflare with DNS routes
 
-## Quick Start (Automated Docker Compose Scripts)
+## Quick Start
 
-The easiest way to run the application is using the provided PowerShell scripts with Docker Compose. Both the Spring Boot application and Cloudflare tunnel run as Docker containers.
-
-### Start Everything
+### Start All Microservices
 
 ```powershell
 .\start.ps1
@@ -21,395 +31,361 @@ The easiest way to run the application is using the provided PowerShell scripts 
 
 This script will:
 1. Stop any running containers
-2. Build the JAR with Maven (`mvn clean package`)
-3. Build Docker images and start both containers using docker-compose:
-   - `javabackend-container` (Spring Boot app on port 8080)
-   - `cloudflared-tunnel` (Cloudflare tunnel)
-4. Wait for the server to be ready
+2. Build all JARs with Maven (`mvn clean package`)
+3. Build Docker images for all services
+4. Start containers in the correct order:
+   - Eureka Server first (service discovery)
+   - Config Server second (configuration)
+   - Hello Service third (microservice)
+   - Gateway Server fourth (API gateway)
+   - Cloudflare Tunnel last (public access)
 
-After running, your application will be available at:
-- Local: `http://localhost:8080`
-- Public: `https://javabackend.com`
+**Startup time:** 2-3 minutes for all services to be healthy and registered.
 
-### Stop Everything
+### Stop All Microservices
 
 ```powershell
 .\stop.ps1
 ```
 
-This script will:
-1. Stop and remove all containers using docker-compose
-2. Clean up any fallback processes on port 8080
+This script will stop and remove all containers cleanly.
 
-### View Logs
+## Accessing the Services
 
-To view real-time logs from both containers:
+Once started, you can access:
+
+### Internal Services (Development)
+- **Eureka Dashboard:** http://localhost:8761
+- **Config Server:** http://localhost:8888
+- **Hello Service:** http://localhost:8081
+- **Gateway Server:** http://localhost:8080
+
+### Via API Gateway
+- **Gateway:** http://localhost:8080/hello
+  - Routes to Hello Service through the gateway
+
+### Public Access
+- **Public URL:** https://javabackend.com/hello
+  - Accessed via Cloudflare Tunnel → Gateway → Hello Service
+
+## Service Descriptions
+
+### 1. Eureka Server
+Service discovery server where all microservices register themselves.
+
+- **Port:** 8761
+- **Dashboard:** http://localhost:8761
+- **Purpose:** Service registration and discovery
+- **Dependencies:** None (starts first)
+
+### 2. Config Server
+Centralized configuration management for all microservices.
+
+- **Port:** 8888
+- **Purpose:** Manage configurations across environments
+- **Dependencies:** Eureka Server
+- **Configuration:** Uses native file system (`src/main/resources/config`)
+
+### 3. Hello Service
+Sample microservice that serves the Hello World page.
+
+- **Port:** 8081
+- **Purpose:** Example microservice with Thymeleaf frontend
+- **Dependencies:** Eureka Server, Config Server
+- **Features:**
+  - Spring Boot web application
+  - Thymeleaf templates
+  - Registers with Eureka
+
+### 4. Gateway Server
+API Gateway that routes requests to microservices.
+
+- **Port:** 8080
+- **Purpose:** Single entry point for all microservices
+- **Dependencies:** All other services
+- **Features:**
+  - Spring Cloud Gateway
+  - Load balancing via Eureka
+  - Route: `/hello/**` → hello-service
+
+### 5. Cloudflare Tunnel
+Secure tunnel to expose gateway to the internet.
+
+- **Purpose:** Public access without opening ports
+- **Configuration:** Routes javabackend.com to gateway-server:8080
+- **Dependencies:** Gateway Server
+
+## Docker Compose Configuration
+
+### Service Startup Order
+
+Docker Compose manages the startup order using health checks:
+
+1. **Eureka Server** starts first
+2. **Config Server** waits for Eureka to be healthy
+3. **Hello Service** waits for Eureka and Config Server
+4. **Gateway Server** waits for all backend services
+5. **Cloudflare Tunnel** waits for Gateway
+
+### Health Checks
+
+All services have health checks using Spring Boot Actuator:
+```yaml
+healthcheck:
+  test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:PORT/actuator/health"]
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 40s
+```
+
+## Viewing Logs
+
+### All Services
 ```powershell
 docker-compose logs -f
 ```
 
-To view logs from a specific container:
+### Specific Service
 ```powershell
-docker-compose logs -f javabackend
+docker-compose logs -f eureka-server
+docker-compose logs -f config-server
+docker-compose logs -f hello-service
+docker-compose logs -f gateway-server
 docker-compose logs -f cloudflared
 ```
 
-### Notes About the Docker Compose Setup
+### Service Status
+```powershell
+docker-compose ps
+```
 
-- Both containers run in detached mode (background)
-- The tunnel container automatically waits for the app to be healthy before starting
-- Containers communicate over a dedicated Docker network
-- The start script automatically checks if the server started successfully
-- Always use `stop.ps1` to properly shut down and clean up containers
-- Each run creates fresh containers with the latest build
-
-## Manual Deployment (Alternative)
-
-If you prefer to run the services manually or need more control:
-
-## Running the Spring Boot Server
-
-### Option 1: Using Maven
-
-1. Open a terminal in the project directory
-2. Run the following command:
-   ```bash
-   mvn spring-boot:run
-   ```
-
-3. The server will start on `http://localhost:8080`
-4. You should see output indicating the application has started successfully
-
-### Option 2: Building and Running the JAR
-
-1. Build the application:
-   ```bash
-   mvn clean package
-   ```
-
-2. Run the generated JAR:
-   ```bash
-   java -jar target/javabackend-1.0-SNAPSHOT.jar
-   ```
-
-3. The server will start on `http://localhost:8080`
-
-### Option 3: Using Docker (Recommended)
-
-1. Build the JAR first:
-   ```bash
-   mvn clean package
-   ```
-
-2. Build the Docker image:
-   ```bash
-   docker build -t 1johnsushil/javabackend:latest .
-   ```
-
-3. Run the Docker container:
-   ```bash
-   docker run -d --name javabackend-container -p 8080:8080 1johnsushil/javabackend:latest
-   ```
-
-4. The server will start on `http://localhost:8080`
-
-5. To stop and remove the container:
-   ```bash
-   docker stop javabackend-container
-   docker rm javabackend-container
-   ```
-
-6. To view container logs:
-   ```bash
-   docker logs javabackend-container
-   ```
-
-7. To view running containers:
-   ```bash
-   docker ps
-   ```
-
-### Verify the Server is Running
-
-Open a browser and navigate to:
-- `http://localhost:8080`
-
-You should see the "Hello World from JavaBackend.com!" page.
-
-## Docker Compose Commands Reference
+## Docker Compose Commands
 
 ### Basic Commands
 
 ```bash
-# Start all services (builds if needed)
+# Start all services
 docker-compose up -d
 
-# Start and rebuild all services
+# Start and rebuild
 docker-compose up -d --build
 
 # Stop all services
 docker-compose stop
 
-# Stop and remove all containers
+# Stop and remove containers
 docker-compose down
 
-# View logs from all services
-docker-compose logs -f
+# View logs
+docker-compose logs -f [service-name]
 
-# View logs from specific service
-docker-compose logs -f javabackend
-docker-compose logs -f cloudflared
-
-# View running containers
+# Check service status
 docker-compose ps
 
-# Restart all services
-docker-compose restart
+# Restart a service
+docker-compose restart [service-name]
+```
 
+### Individual Service Management
+
+```bash
 # Restart specific service
-docker-compose restart javabackend
-```
+docker-compose restart hello-service
 
-### Advanced Commands
+# Rebuild specific service
+docker-compose up -d --build hello-service
 
-```bash
-# Build images without starting
-docker-compose build
-
-# Remove stopped containers
-docker-compose rm
-
-# View resource usage
-docker-compose top
-
-# Execute command in running container
-docker-compose exec javabackend sh
-
-# Pull latest cloudflared image
-docker-compose pull cloudflared
-```
-
-## Docker Commands Reference (Individual Containers)
-
-```bash
-# Build the Docker image
-docker build -t 1johnsushil/javabackend:latest .
-
-# Run the container
-docker run -d --name javabackend-container -p 8080:8080 1johnsushil/javabackend:latest
-
-# Stop the container
-docker stop javabackend-container
-
-# Remove the container
-docker rm javabackend-container
-
-# View logs
-docker logs javabackend-container
-
-# View running containers
-docker ps
-
-# View all containers (including stopped)
-docker ps -a
-
-# Push to Docker Hub (optional)
-docker push 1johnsushil/javabackend:latest
-```
-
-## Setting Up Cloudflare Tunnel
-
-### Step 1: Create the Tunnel (One-time setup)
-
-If you haven't created the tunnel yet:
-
-```bash
-cloudflared tunnel create javabackend-tunnel
-```
-
-This will:
-- Create a tunnel named `javabackend-tunnel`
-- Generate a credentials file (usually in `C:\Users\YOUR_USERNAME\.cloudflared\`)
-- Display the tunnel ID
-
-### Step 2: Update the Configuration File
-
-1. Open `cloudflare-tunnel-config.yml` in this directory
-2. Update the `credentials-file` path with your actual:
-   - Username
-   - Tunnel ID (from the credentials file name)
-
-Example:
-```yaml
-credentials-file: C:\Users\JohnDoe\.cloudflared\12345678-1234-1234-1234-123456789abc.json
-```
-
-### Step 3: Configure DNS (One-time setup)
-
-Create DNS records pointing to your tunnel:
-
-```bash
-cloudflared tunnel route dns javabackend-tunnel javabackend.com
-cloudflared tunnel route dns javabackend-tunnel www.javabackend.com
-```
-
-This creates CNAME records in Cloudflare pointing your domain to the tunnel.
-
-## Running the Cloudflare Tunnel
-
-### Start the tunnel with the configuration file:
-
-```bash
-cloudflared tunnel --config cloudflare-tunnel-config.yml run javabackend-tunnel
-```
-
-Or, if you prefer to run it from anywhere, use the full path:
-
-```bash
-cloudflared tunnel --config C:\code\projects\javabackend\cloudflare-tunnel-config.yml run javabackend-tunnel
-```
-
-### Verify the Tunnel is Running
-
-1. The terminal should show:
-   - Connection established
-   - Tunnel running
-   - Registered routes
-
-2. Open a browser and navigate to:
-   - `https://javabackend.com`
-   - `https://www.javabackend.com`
-
-You should see your Hello World page served through Cloudflare!
-
-## Complete Deployment Process
-
-To deploy your application and make it accessible:
-
-### Terminal 1 - Run the Spring Boot Server:
-```bash
-cd C:\code\projects\javabackend
-mvn spring-boot:run
-```
-
-Wait for the server to start (you'll see "Started Main in X seconds")
-
-### Terminal 2 - Run the Cloudflare Tunnel:
-```bash
-cd C:\code\projects\javabackend
-cloudflared tunnel --config cloudflare-tunnel-config.yml run javabackend-tunnel
-```
-
-Wait for the tunnel to connect
-
-### Access Your Site:
-- Locally: `http://localhost:8080`
-- Publicly: `https://javabackend.com`
-
-## Running as a Service (Optional)
-
-### Windows Service (Cloudflare Tunnel)
-
-To run the tunnel as a background service:
-
-```bash
-cloudflared service install
-```
-
-Then start the service from Windows Services or:
-```bash
-cloudflared service start
-```
-
-### Spring Boot as a Windows Service
-
-You can configure Spring Boot to run as a Windows service using tools like:
-- WinSW (Windows Service Wrapper)
-- NSSM (Non-Sucking Service Manager)
-
-## Troubleshooting
-
-### Docker Container Won't Start
-- Ensure Docker Desktop is running
-- Check if port 8080 is already in use: `docker ps`
-- View container logs: `docker logs javabackend-container`
-- Remove any existing containers: `docker rm -f javabackend-container`
-- Check Docker version: `docker --version`
-
-### Server Won't Start (Non-Docker)
-- Check if port 8080 is already in use
-- Verify Java is installed: `java -version`
-- Check Maven is installed: `mvn -version`
-
-### Tunnel Won't Connect
-- Verify cloudflared is installed: `cloudflared --version`
-- Check the credentials file path in `cloudflare-tunnel-config.yml`
-- Ensure you're logged in: `cloudflared tunnel login`
-- Verify the tunnel exists: `cloudflared tunnel list`
-
-### Domain Not Accessible
-- Check DNS records in Cloudflare dashboard
-- Wait a few minutes for DNS propagation
-- Verify both server and tunnel are running
-- Check Cloudflare dashboard for tunnel status
-
-## Stopping the Services
-
-### Stop the Spring Boot Server
-- Press `Ctrl+C` in the terminal running Maven
-
-### Stop the Cloudflare Tunnel
-- Press `Ctrl+C` in the terminal running cloudflared
-
-## Useful Commands
-
-```bash
-# List all tunnels
-cloudflared tunnel list
-
-# Delete a tunnel (if needed)
-cloudflared tunnel delete javabackend-tunnel
-
-# Check tunnel info
-cloudflared tunnel info javabackend-tunnel
-
-# Test the configuration
-cloudflared tunnel ingress validate --config cloudflare-tunnel-config.yml
-
-# Test which rule matches a URL
-cloudflared tunnel ingress rule https://javabackend.com --config cloudflare-tunnel-config.yml
+# Scale a service (multiple instances)
+docker-compose up -d --scale hello-service=3
 ```
 
 ## Project Structure
 
 ```
 javabackend/
-├── src/
-│   └── main/
-│       ├── java/org/johnprasad/
-│       │   ├── Main.java                    # Spring Boot application entry point
-│       │   └── HelloController.java         # Controller for the web page
+├── pom.xml                                   # Parent POM (multi-module)
+├── docker-compose.yml                        # Orchestrates all containers
+├── start.ps1                                 # Automated startup script
+├── stop.ps1                                  # Automated shutdown script
+├── cloudflare-tunnel-config.yml             # Cloudflare tunnel config
+├── deploy.md                                # This file
+│
+├── eureka-server/
+│   ├── pom.xml
+│   ├── Dockerfile
+│   └── src/main/
+│       ├── java/org/johnprasad/eureka/
+│       │   └── EurekaServerApplication.java
 │       └── resources/
-│           ├── templates/
-│           │   └── index.html               # Hello World HTML page
-│           └── application.properties       # Spring Boot configuration
-├── pom.xml                                  # Maven dependencies
-├── Dockerfile                               # Docker image configuration for Spring Boot app
-├── docker-compose.yml                       # Orchestrates both containers
-├── .dockerignore                            # Docker ignore file
-├── start.ps1                                # Automated start script (Docker Compose)
-├── stop.ps1                                 # Automated stop script (Docker Compose)
-├── cloudflare-tunnel-config.yml            # Cloudflare tunnel configuration
-└── deploy.md                               # This file
+│           └── application.yml
+│
+├── config-server/
+│   ├── pom.xml
+│   ├── Dockerfile
+│   └── src/main/
+│       ├── java/org/johnprasad/config/
+│       │   └── ConfigServerApplication.java
+│       └── resources/
+│           └── application.yml
+│
+├── gateway-server/
+│   ├── pom.xml
+│   ├── Dockerfile
+│   └── src/main/
+│       ├── java/org/johnprasad/gateway/
+│       │   └── GatewayServerApplication.java
+│       └── resources/
+│           └── application.yml
+│
+└── hello-service/
+    ├── pom.xml
+    ├── Dockerfile
+    └── src/main/
+        ├── java/org/johnprasad/
+        │   ├── Main.java
+        │   └── HelloController.java
+        └── resources/
+            ├── application.yml
+            └── templates/
+                └── index.html
 ```
+
+## Building Individual Services
+
+### Build All Services
+```bash
+mvn clean package
+```
+
+### Build Specific Service
+```bash
+mvn clean package -pl eureka-server -am
+mvn clean package -pl config-server -am
+mvn clean package -pl gateway-server -am
+mvn clean package -pl hello-service -am
+```
+
+## Troubleshooting
+
+### Services Won't Start
+
+1. **Check Docker Desktop** is running
+2. **View logs** for specific service:
+   ```bash
+   docker-compose logs [service-name]
+   ```
+3. **Check Eureka Dashboard** at http://localhost:8761
+   - All services should be registered
+4. **Verify health checks**:
+   ```bash
+   docker-compose ps
+   ```
+
+### Gateway Can't Find Services
+
+1. Check Eureka Dashboard - services must be registered
+2. Wait 30-60 seconds after startup for registration
+3. Check gateway logs:
+   ```bash
+   docker-compose logs -f gateway-server
+   ```
+
+### Service Registration Issues
+
+1. Verify Eureka Server is running and healthy
+2. Check service application.yml for correct Eureka URL:
+   ```yaml
+   eureka:
+     client:
+       service-url:
+         defaultZone: http://eureka-server:8761/eureka/
+   ```
+3. Ensure services are on the same Docker network
+
+### Cloudflare Tunnel Issues
+
+1. Check credentials file path in docker-compose.yml
+2. Verify tunnel is running:
+   ```bash
+   docker-compose logs cloudflared
+   ```
+3. Check Cloudflare dashboard for tunnel status
+
+### Port Conflicts
+
+If ports are already in use:
+1. Stop conflicting services
+2. Or modify ports in docker-compose.yml:
+   ```yaml
+   ports:
+     - "NEW_PORT:INTERNAL_PORT"
+   ```
+
+### Build Failures
+
+1. Clean Maven cache:
+   ```bash
+   mvn clean
+   ```
+2. Update dependencies:
+   ```bash
+   mvn dependency:purge-local-repository
+   ```
+3. Rebuild from root:
+   ```bash
+   mvn clean install -DskipTests
+   ```
+
+## Adding New Microservices
+
+To add a new microservice:
+
+1. Create new module directory
+2. Create pom.xml with parent reference:
+   ```xml
+   <parent>
+       <groupId>org.johnprasad</groupId>
+       <artifactId>javabackend-parent</artifactId>
+       <version>1.0-SNAPSHOT</version>
+   </parent>
+   ```
+3. Add Eureka Client dependency
+4. Create Dockerfile
+5. Add service to docker-compose.yml
+6. Add module to parent pom.xml
+7. Configure application.yml with Eureka settings
+
+## Production Considerations
+
+For production deployment:
+
+1. **Environment Variables**: Externalize all configurations
+2. **Secrets Management**: Don't commit credentials
+3. **Resource Limits**: Add CPU/memory limits in docker-compose.yml
+4. **Logging**: Configure centralized logging (ELK stack)
+5. **Monitoring**: Add Spring Boot Admin or Prometheus
+6. **High Availability**: Run multiple instances of services
+7. **Load Balancing**: Use Ribbon or Spring Cloud LoadBalancer
+8. **Circuit Breakers**: Implement Resilience4j
+9. **Distributed Tracing**: Add Sleuth and Zipkin
+10. **API Documentation**: Use Swagger/OpenAPI
 
 ## Notes
 
-- Docker Compose orchestrates both the Spring Boot app and Cloudflare tunnel as containers
-- The tunnel container automatically waits for the app to be healthy before connecting
-- Both containers run in the background (detached mode)
-- Containers communicate over a private Docker network named `javabackend-network`
-- Use `stop.ps1` to properly clean up all containers
-- Each fresh start builds new containers with the latest code changes
-- The Cloudflare credentials file is mounted read-only into the tunnel container
-- Health checks ensure the app is ready before the tunnel starts routing traffic
+- Services start in dependency order managed by Docker Compose
+- Health checks ensure services are ready before dependents start
+- All services communicate over the `microservices-network` Docker network
+- Eureka handles service discovery - no hardcoded URLs needed
+- Gateway provides a single entry point for all microservices
+- Cloudflare Tunnel provides secure public access without port forwarding
+
+## Useful URLs
+
+After starting all services:
+
+- **Eureka:** http://localhost:8761 (view all registered services)
+- **Config:** http://localhost:8888 (configuration endpoint)
+- **Hello Service:** http://localhost:8081 (direct access)
+- **Gateway:** http://localhost:8080/hello (via gateway)
+- **Public:** https://javabackend.com/hello (via Cloudflare)

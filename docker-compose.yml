@@ -1,23 +1,98 @@
 version: '3.8'
 
 services:
-  # Spring Boot Application
-  javabackend:
+  # Eureka Server - Service Discovery
+  eureka-server:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: 1johnsushil/javabackend:latest
-    container_name: javabackend-container
+      dockerfile: eureka-server/Dockerfile
+    image: 1johnsushil/eureka-server:latest
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # Config Server - Centralized Configuration
+  config-server:
+    build:
+      context: .
+      dockerfile: config-server/Dockerfile
+    image: 1johnsushil/config-server:latest
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    networks:
+      - microservices-network
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # Hello Service - Microservice
+  hello-service:
+    build:
+      context: .
+      dockerfile: hello-service/Dockerfile
+    image: 1johnsushil/hello-service:latest
+    container_name: hello-service
+    ports:
+      - "8081:8081"
+    networks:
+      - microservices-network
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # Gateway Server - API Gateway
+  gateway-server:
+    build:
+      context: .
+      dockerfile: gateway-server/Dockerfile
+    image: 1johnsushil/gateway-server:latest
+    container_name: gateway-server
     ports:
       - "8080:8080"
     networks:
-      - javabackend-network
+      - microservices-network
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      hello-service:
+        condition: service_healthy
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8761/eureka/
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 40s
 
   # Cloudflare Tunnel
   cloudflared:
@@ -28,12 +103,12 @@ services:
       - ./cloudflare-tunnel-config.yml:/etc/cloudflared/config.yml:ro
       - C:\Users\lifeo\.cloudflared\4c2d1f8b-b342-4350-b2a3-ee468c1e977b.json:/etc/cloudflared/credentials.json:ro
     networks:
-      - javabackend-network
+      - microservices-network
     depends_on:
-      javabackend:
+      gateway-server:
         condition: service_healthy
     restart: unless-stopped
 
 networks:
-  javabackend-network:
+  microservices-network:
     driver: bridge
